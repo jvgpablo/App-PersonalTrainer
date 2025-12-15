@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { auth } from "../../config/firebaseConfig";
@@ -10,11 +10,19 @@ import SettingsScreen from "./SettingsScreen";
 
 const Tab = createBottomTabNavigator();
 
-const WelcomeScreen = () => (
+// Modificamos WelcomeScreen para recibir 'navigation' y mostrar el botón
+const WelcomeScreen = ({ navigation }) => (
   <View style={styles.welcomeContainer}>
     <Text style={styles.welcomeText}>
       ¡Bienvenido a tu panel de estudiante!
     </Text>
+
+    <TouchableOpacity
+      style={styles.editButton}
+      onPress={() => navigation.navigate("EditProfile")}
+    >
+      <Text style={styles.editButtonText}>Editar Mis Datos</Text>
+    </TouchableOpacity>
   </View>
 );
 
@@ -90,6 +98,24 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: "#000",
     textAlign: "center",
+    marginBottom: 20,
+  },
+  editButton: {
+    backgroundColor: "#ff6f00",
+    paddingVertical: 12,
+    paddingHorizontal: 25,
+    borderRadius: 25,
+    marginTop: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  editButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
   },
   errorContainer: {
     flex: 1,

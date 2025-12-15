@@ -5,137 +5,106 @@ import {
   StyleSheet,
   ScrollView,
   ImageBackground,
+  ActivityIndicator,
 } from "react-native";
-import {
-  VictoryChart,
-  VictoryBar,
-  VictoryLine,
-  VictoryTheme,
-} from "victory-native";
 import { db, auth } from "../../config/firebaseConfig";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
+import { useFocusEffect } from "@react-navigation/native";
 import backgroundImage from "../../assets/motivacion.png";
 
 const ProgressScreen = () => {
-  const [progressData, setProgressData] = useState([]);
-  const [completedCount, setCompletedCount] = useState(0);
-  const [totalCount, setTotalCount] = useState(0);
+  const [completedRoutines, setCompletedRoutines] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // Fetch progress data and routines
-  useEffect(() => {
-    const fetchProgressAndRoutines = async () => {
-      try {
-        const userId = auth.currentUser?.uid;
-        if (!userId) throw new Error("Usuario no autenticado.");
+  const fetchCompletedRoutines = async () => {
+    setLoading(true);
+    try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) throw new Error("Usuario no autenticado.");
 
-        // Fetch routine data
-        const routineSnapshot = await getDocs(
-          collection(db, "usuarios", userId, "routine")
-        );
-        const routines = routineSnapshot.docs.map((doc) => doc.data());
-        const completed = routines.filter(
-          (routine) => routine.completed
-        ).length;
-        const total = routines.length;
+      const progressSnapshot = await getDocs(
+        collection(db, "usuarios", userId, "progress")
+      );
 
-        setCompletedCount(completed);
-        setTotalCount(total);
+      const routines = progressSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
 
-        // Fetch progress data for the last 4 weeks
-        const progressQuery = query(
-          collection(db, "usuarios", userId, "progress"),
-          where(
-            "date",
-            ">=",
-            new Date(Date.now() - 4 * 7 * 24 * 60 * 60 * 1000)
-          ) // Últimas 4 semanas
-        );
-        const progressSnapshot = await getDocs(progressQuery);
-        const data = {};
+      setCompletedRoutines(routines);
+    } catch (error) {
+      console.error("Error al obtener rutinas completadas:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-        progressSnapshot.forEach((doc) => {
-          const progress = doc.data();
-          const week = `Semana ${getWeekNumber(progress.date.toDate())}`;
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchCompletedRoutines();
+    }, [])
+  );
 
-          if (!data[week]) {
-            data[week] = { semana: week, Piernas: 0, Cardio: 0, Fuerza: 0 };
-          }
-          data[week][progress.area] += progress.volume;
-        });
-
-        const processedData = Object.values(data).map((weekData) => ({
-          ...weekData,
-          totalVolume: weekData.Piernas + weekData.Cardio + weekData.Fuerza,
-        }));
-
-        setProgressData(processedData);
-      } catch (error) {
-        console.error("Error fetching progress and routines:", error);
-      }
-    };
-
-    fetchProgressAndRoutines();
-  }, []);
+  const renderRoutine = (routine) => (
+    <View key={routine.id} style={styles.routineContainer}>
+      <Text style={styles.routineText}>
+        <Text style={styles.label}>Nombre de Rutina: </Text>
+        {routine.routineName || "No especificado"}
+      </Text>
+      <Text style={styles.routineText}>
+        <Text style={styles.label}>Ejercicios:</Text>
+      </Text>
+      {routine.exercises && routine.exercises.length > 0 ? (
+        routine.exercises.map((exercise, index) => (
+          <View key={index} style={styles.exerciseContainer}>
+            <Text style={styles.exerciseText}>
+              Área: {exercise.area || "No especificado"}
+            </Text>
+            <Text style={styles.exerciseText}>
+              Nombre: {exercise.nombre || "No especificado"}
+            </Text>
+            <Text style={styles.exerciseText}>
+              Repeticiones: {exercise.repeticiones || "No especificado"}
+            </Text>
+            <Text style={styles.exerciseText}>
+              Series: {exercise.series || "No especificado"}
+            </Text>
+            <Text style={styles.exerciseText}>
+              Peso: {exercise.peso || "No especificado"} kg
+            </Text>
+          </View>
+        ))
+      ) : (
+        <Text style={styles.noExercisesText}>No hay ejercicios.</Text>
+      )}
+    </View>
+  );
 
   return (
     <ImageBackground source={backgroundImage} style={styles.background}>
       <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.title}>Progreso del Alumno</Text>
-
-        {/* Mostrar Rutinas Completadas/Total */}
-        <View style={styles.routinesContainer}>
-          <Text style={styles.routinesText}>
-            Rutinas Completadas: {completedCount}/{totalCount}
-          </Text>
-        </View>
-
-        {progressData.length > 0 ? (
-          <View>
-            <Text style={styles.chartTitle}>
-              Volumen de Entrenamiento Semanal
-            </Text>
-            <VictoryChart theme={VictoryTheme.material} domainPadding={20}>
-              <VictoryBar
-                data={progressData}
-                x="semana"
-                y="totalVolume"
-                style={{ data: { fill: "#FF6347" } }}
-              />
-            </VictoryChart>
-
-            <Text style={styles.chartTitle}>Progreso en Cardio</Text>
-            <VictoryChart theme={VictoryTheme.material} domainPadding={20}>
-              <VictoryLine
-                data={progressData}
-                x="semana"
-                y="Cardio"
-                style={{ data: { stroke: "#FFD700", strokeWidth: 3 } }}
-              />
-            </VictoryChart>
-
-            <Text style={styles.chartTitle}>Progreso en Fuerza</Text>
-            <VictoryChart theme={VictoryTheme.material} domainPadding={20}>
-              <VictoryLine
-                data={progressData}
-                x="semana"
-                y="Fuerza"
-                style={{ data: { stroke: "#3CB371", strokeWidth: 3 } }}
-              />
-            </VictoryChart>
-          </View>
+        {loading ? (
+          <ActivityIndicator size="large" color="#FFD700" />
         ) : (
-          <Text style={styles.noDataText}></Text>
+          <>
+            <View style={styles.summaryContainer}>
+              <Text style={styles.summaryText}>
+                Rutinas Completadas: {completedRoutines.length}
+              </Text>
+            </View>
+            {completedRoutines.length > 0 ? (
+              completedRoutines.map(renderRoutine)
+            ) : (
+              <Text style={styles.noDataText}>
+                No hay rutinas completadas disponibles.
+              </Text>
+            )}
+          </>
         )}
       </ScrollView>
     </ImageBackground>
   );
-};
-
-// Helper function to get week number
-const getWeekNumber = (date) => {
-  const startOfYear = new Date(date.getFullYear(), 0, 1);
-  const pastDaysOfYear = (date - startOfYear) / 86400000;
-  return Math.ceil((pastDaysOfYear + startOfYear.getDay() + 1) / 7);
 };
 
 const styles = StyleSheet.create({
@@ -157,24 +126,53 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "bold",
   },
-  routinesContainer: {
+  summaryContainer: {
     marginBottom: 20,
     padding: 15,
     backgroundColor: "#fff",
     borderRadius: 10,
     alignItems: "center",
   },
-  routinesText: {
+  summaryText: {
     fontSize: 20,
     color: "#FF6347",
     fontWeight: "bold",
   },
-  chartTitle: {
-    fontSize: 20,
-    marginTop: 20,
-    textAlign: "center",
-    color: "#FFD700",
+  routineContainer: {
+    marginBottom: 15,
+    padding: 15,
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.1,
+    elevation: 3,
+  },
+  routineText: {
+    fontSize: 16,
+    marginBottom: 5,
+    color: "#333",
+  },
+  label: {
     fontWeight: "bold",
+  },
+  exerciseContainer: {
+    marginTop: 10,
+    padding: 10,
+    backgroundColor: "#f9f9f9",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#ddd",
+  },
+  exerciseText: {
+    fontSize: 14,
+    color: "#555",
+  },
+  noExercisesText: {
+    textAlign: "center",
+    fontSize: 14,
+    color: "#888",
+    marginTop: 10,
   },
   noDataText: {
     textAlign: "center",

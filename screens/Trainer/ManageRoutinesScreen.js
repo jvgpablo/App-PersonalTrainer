@@ -5,226 +5,360 @@ import {
   TextInput,
   StyleSheet,
   ScrollView,
-  Alert,
-  ActivityIndicator,
   TouchableOpacity,
+  Alert,
 } from "react-native";
 import { db } from "../../config/firebaseConfig";
-import { collection, getDoc, doc, addDoc } from "firebase/firestore";
+import { collection, getDocs, addDoc, doc, getDoc } from "firebase/firestore";
 import { Picker } from "@react-native-picker/picker";
-import Ionicons from "react-native-vector-icons/Ionicons";
 
-const ManageRoutinesScreen = ({ route, navigation }) => {
+const ManageRoutinesScreen = ({ route }) => {
   const { trainerId } = route.params || {};
   const [students, setStudents] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState("");
-  const [routineName, setRoutineName] = useState("");
-  const [exercises, setExercises] = useState([
-    { name: "", sets: "", repetitions: "", weight: "", area: "" },
-  ]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [routineType, setRoutineType] = useState("");
+  const [predefinedRoutines, setPredefinedRoutines] = useState([]);
+  const [selectedPredefinedRoutines, setSelectedPredefinedRoutines] = useState(
+    []
+  );
+  const [customRoutine, setCustomRoutine] = useState({
+    area: "",
+    nombre: "",
+    repeticiones: "",
+    series: "",
+    peso: "",
+  });
+  const [newPredefinedRoutine, setNewPredefinedRoutine] = useState({
+    area: "",
+    nombre: "",
+    repeticiones: "",
+    series: "",
+    peso: "",
+  });
+  const [showCreatePredefined, setShowCreatePredefined] = useState(false);
 
   useEffect(() => {
-    if (!trainerId) {
-      setError("El ID del entrenador no está disponible.");
-      return;
-    }
-
-    const fetchStudents = async () => {
+    const fetchData = async () => {
       try {
         const trainerDoc = await getDoc(doc(db, "usuarios", trainerId));
         if (trainerDoc.exists()) {
-          const studentIds = trainerDoc.data().listaDeAlumnos || [];
-          const studentDocs = await Promise.all(
-            studentIds.map((id) => getDoc(doc(db, "usuarios", id)))
+          const assignedStudents = trainerDoc.data().listaDeAlumnos || [];
+          const studentsData = await Promise.all(
+            assignedStudents.map(async (studentId) => {
+              const studentDoc = await getDoc(doc(db, "usuarios", studentId));
+              if (studentDoc.exists()) {
+                return {
+                  id: studentId,
+                  nombre: studentDoc.data().name || "Alumno sin nombre",
+                };
+              }
+              return null;
+            })
           );
-          setStudents(
-            studentDocs
-              .filter((doc) => doc.exists())
-              .map((doc) => ({ id: doc.id, ...doc.data() }))
-          );
-        } else {
-          setError("No se encontró información del entrenador.");
+          setStudents(studentsData.filter((student) => student !== null));
         }
+
+        const predefinedSnapshot = await getDocs(
+          collection(db, "ejerciciosPredefinidos")
+        );
+        const predefinedData = predefinedSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setPredefinedRoutines(predefinedData);
       } catch (error) {
-        console.error("Error fetching students:", error);
-        setError("No se pudieron cargar los estudiantes.");
-      } finally {
-        setLoading(false);
+        console.error("Error al cargar datos:", error);
+        Alert.alert("Error", "No se pudo cargar la información.");
       }
     };
 
-    fetchStudents();
+    fetchData();
   }, [trainerId]);
 
-  const handleAddExercise = () => {
-    setExercises([
-      ...exercises,
-      { name: "", sets: "", repetitions: "", weight: "", area: "" },
-    ]);
-  };
-
-  const handleSaveRoutine = async () => {
-    if (!selectedStudent || !routineName.trim()) {
+  const handleAssignPredefinedRoutines = async () => {
+    if (!selectedStudent || selectedPredefinedRoutines.length === 0) {
       Alert.alert(
         "Error",
-        "Seleccione un alumno y asigne un nombre a la rutina."
+        "Seleccione un alumno y al menos una rutina predefinida."
       );
       return;
     }
 
     try {
+      const routinesToSave = selectedPredefinedRoutines.map((id) =>
+        predefinedRoutines.find((routine) => routine.id === id)
+      );
+
       await addDoc(collection(db, "usuarios", selectedStudent, "routine"), {
-        routineName,
-        exercises,
+        routineName: "Rutinas Predefinidas",
+        exercises: routinesToSave,
         startDate: new Date(),
       });
 
-      Alert.alert("Éxito", "Rutina creada con éxito.");
-      setRoutineName("");
-      setExercises([
-        { name: "", sets: "", repetitions: "", weight: "", area: "" },
-      ]);
-      navigation.goBack(); // Regresa a la pantalla anterior después de guardar
+      Alert.alert("Éxito", "Rutinas predefinidas asignadas al alumno.");
+      setSelectedPredefinedRoutines([]);
     } catch (error) {
-      console.error("Error saving routine:", error);
-      Alert.alert("Error", "No se pudo guardar la rutina.");
+      console.error("Error al asignar rutinas predefinidas:", error);
+      Alert.alert("Error", "No se pudo asignar las rutinas.");
     }
   };
 
-  if (error) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back-outline" size={24} color="#fff" />
-          <Text style={styles.backButtonText}>Volver</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+  const handleCreateCustomRoutine = async () => {
+    if (!selectedStudent || !customRoutine.nombre || !customRoutine.area) {
+      Alert.alert("Error", "Complete todos los campos y seleccione un alumno.");
+      return;
+    }
+
+    try {
+      await addDoc(collection(db, "usuarios", selectedStudent, "routine"), {
+        routineName: customRoutine.nombre,
+        exercises: [customRoutine],
+        startDate: new Date(),
+      });
+
+      Alert.alert("Éxito", "Rutina personalizada asignada al alumno.");
+      setCustomRoutine({
+        area: "",
+        nombre: "",
+        repeticiones: "",
+        series: "",
+        peso: "",
+      });
+    } catch (error) {
+      console.error("Error al asignar rutina personalizada:", error);
+      Alert.alert("Error", "No se pudo asignar la rutina personalizada.");
+    }
+  };
+
+  const handleCreatePredefinedRoutine = async () => {
+    if (
+      !newPredefinedRoutine.area ||
+      !newPredefinedRoutine.nombre ||
+      !newPredefinedRoutine.repeticiones ||
+      !newPredefinedRoutine.series ||
+      !newPredefinedRoutine.peso
+    ) {
+      Alert.alert("Error", "Complete todos los campos para crear la rutina.");
+      return;
+    }
+
+    try {
+      await addDoc(
+        collection(db, "ejerciciosPredefinidos"),
+        newPredefinedRoutine
+      );
+      Alert.alert("Éxito", "Rutina predefinida creada con éxito.");
+      setNewPredefinedRoutine({
+        area: "",
+        nombre: "",
+        repeticiones: "",
+        series: "",
+        peso: "",
+      });
+      setShowCreatePredefined(false);
+
+      // Recargar rutinas predefinidas
+      const predefinedSnapshot = await getDocs(
+        collection(db, "ejerciciosPredefinidos")
+      );
+      const predefinedData = predefinedSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setPredefinedRoutines(predefinedData);
+    } catch (error) {
+      console.error("Error al crear rutina predefinida:", error);
+      Alert.alert("Error", "No se pudo crear la rutina predefinida.");
+    }
+  };
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Crear Nueva Rutina</Text>
-      {loading ? (
-        <ActivityIndicator size="large" color="#FF6347" />
-      ) : (
-        <>
-          <View style={styles.pickerContainer}>
-            <Ionicons name="people-outline" size={20} color="#333" />
-            <Picker
-              selectedValue={selectedStudent}
-              onValueChange={setSelectedStudent}
-              style={styles.picker}
-            >
-              <Picker.Item label="Seleccione un alumno" value="" />
-              {students.map((student) => (
-                <Picker.Item
-                  key={student.id}
-                  label={student.nombre || student.email}
-                  value={student.id}
-                />
-              ))}
-            </Picker>
-          </View>
+      <Text style={styles.title}>Gestión de Rutinas</Text>
 
-          <View style={styles.inputContainer}>
-            <Ionicons name="document-text-outline" size={20} color="#333" />
-            <TextInput
-              style={styles.input}
-              placeholder="Nombre de la Rutina"
-              value={routineName}
-              onChangeText={setRoutineName}
-              placeholderTextColor="#aaa"
-            />
-          </View>
+      <TouchableOpacity
+        style={styles.createPredefinedButton}
+        onPress={() => setShowCreatePredefined(!showCreatePredefined)}
+      >
+        <Text style={styles.buttonText}>
+          {showCreatePredefined
+            ? "Cancelar Crear Rutina Predefinida"
+            : "Crear Rutina Predefinida Nueva"}
+        </Text>
+      </TouchableOpacity>
 
-          {exercises.map((exercise, index) => (
-            <View key={index} style={styles.exerciseContainer}>
-              <Text style={styles.exerciseTitle}>Ejercicio {index + 1}</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Nombre del Ejercicio"
-                value={exercise.name}
-                onChangeText={(text) => {
-                  const updatedExercises = [...exercises];
-                  updatedExercises[index].name = text;
-                  setExercises(updatedExercises);
-                }}
-                placeholderTextColor="#aaa"
-              />
-              <View style={styles.row}>
-                <TextInput
-                  style={[styles.input, styles.smallInput]}
-                  placeholder="Series"
-                  keyboardType="numeric"
-                  value={exercise.sets}
-                  onChangeText={(text) => {
-                    const updatedExercises = [...exercises];
-                    updatedExercises[index].sets = text;
-                    setExercises(updatedExercises);
-                  }}
-                  placeholderTextColor="#aaa"
-                />
-                <TextInput
-                  style={[styles.input, styles.smallInput]}
-                  placeholder="Repeticiones"
-                  keyboardType="numeric"
-                  value={exercise.repetitions}
-                  onChangeText={(text) => {
-                    const updatedExercises = [...exercises];
-                    updatedExercises[index].repetitions = text;
-                    setExercises(updatedExercises);
-                  }}
-                  placeholderTextColor="#aaa"
-                />
-                <TextInput
-                  style={[styles.input, styles.smallInput]}
-                  placeholder="Peso (kg)"
-                  keyboardType="numeric"
-                  value={exercise.weight}
-                  onChangeText={(text) => {
-                    const updatedExercises = [...exercises];
-                    updatedExercises[index].weight = text;
-                    setExercises(updatedExercises);
-                  }}
-                  placeholderTextColor="#aaa"
-                />
-              </View>
-              {/* Campo para ingresar el área */}
-              <TextInput
-                style={styles.input}
-                placeholder="Área (e.g., Piernas, Pecho, etc.)"
-                value={exercise.area}
-                onChangeText={(text) => {
-                  const updatedExercises = [...exercises];
-                  updatedExercises[index].area = text;
-                  setExercises(updatedExercises);
-                }}
-                placeholderTextColor="#aaa"
-              />
-            </View>
-          ))}
-
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={handleAddExercise}
-          >
-            <Ionicons name="add-circle-outline" size={24} color="#fff" />
-            <Text style={styles.addButtonText}>Añadir Ejercicio</Text>
-          </TouchableOpacity>
-
+      {showCreatePredefined && (
+        <View style={styles.formContainer}>
+          <Text style={styles.subtitle}>Crear Rutina Predefinida</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Área"
+            value={newPredefinedRoutine.area}
+            onChangeText={(text) =>
+              setNewPredefinedRoutine({ ...newPredefinedRoutine, area: text })
+            }
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Nombre"
+            value={newPredefinedRoutine.nombre}
+            onChangeText={(text) =>
+              setNewPredefinedRoutine({ ...newPredefinedRoutine, nombre: text })
+            }
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Repeticiones"
+            keyboardType="numeric"
+            value={newPredefinedRoutine.repeticiones}
+            onChangeText={(text) =>
+              setNewPredefinedRoutine({
+                ...newPredefinedRoutine,
+                repeticiones: text,
+              })
+            }
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Series"
+            keyboardType="numeric"
+            value={newPredefinedRoutine.series}
+            onChangeText={(text) =>
+              setNewPredefinedRoutine({ ...newPredefinedRoutine, series: text })
+            }
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Peso (kg)"
+            keyboardType="numeric"
+            value={newPredefinedRoutine.peso}
+            onChangeText={(text) =>
+              setNewPredefinedRoutine({ ...newPredefinedRoutine, peso: text })
+            }
+          />
           <TouchableOpacity
             style={styles.saveButton}
-            onPress={handleSaveRoutine}
+            onPress={handleCreatePredefinedRoutine}
           >
-            <Ionicons name="save-outline" size={24} color="#fff" />
-            <Text style={styles.addButtonText}>Guardar Rutina</Text>
+            <Text style={styles.buttonText}>Guardar Rutina Predefinida</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      <Picker
+        selectedValue={selectedStudent}
+        onValueChange={setSelectedStudent}
+        style={styles.picker}
+      >
+        <Picker.Item label="Seleccione un alumno" value="" />
+        {students.map((student) => (
+          <Picker.Item
+            key={student.id}
+            label={student.nombre}
+            value={student.id}
+          />
+        ))}
+      </Picker>
+
+      <Picker
+        selectedValue={routineType}
+        onValueChange={setRoutineType}
+        style={styles.picker}
+      >
+        <Picker.Item label="Seleccione tipo de rutina" value="" />
+        <Picker.Item label="Rutina Predefinida" value="predefined" />
+        <Picker.Item label="Rutina Personalizada" value="custom" />
+      </Picker>
+
+      {routineType === "predefined" && (
+        <>
+          <Text style={styles.subtitle}>Seleccionar Rutinas Predefinidas</Text>
+          {predefinedRoutines.map((routine) => (
+            <TouchableOpacity
+              key={routine.id}
+              style={[
+                styles.routineButton,
+                selectedPredefinedRoutines.includes(routine.id) &&
+                  styles.selectedRoutine,
+              ]}
+              onPress={() => {
+                if (selectedPredefinedRoutines.includes(routine.id)) {
+                  setSelectedPredefinedRoutines((prev) =>
+                    prev.filter((id) => id !== routine.id)
+                  );
+                } else {
+                  setSelectedPredefinedRoutines((prev) => [
+                    ...prev,
+                    routine.id,
+                  ]);
+                }
+              }}
+            >
+              <Text style={styles.routineText}>
+                {routine.nombre} - {routine.area}
+              </Text>
+            </TouchableOpacity>
+          ))}
+          <TouchableOpacity
+            style={styles.saveButton}
+            onPress={handleAssignPredefinedRoutines}
+          >
+            <Text style={styles.buttonText}>Guardar Rutinas Predefinidas</Text>
+          </TouchableOpacity>
+        </>
+      )}
+
+      {routineType === "custom" && (
+        <>
+          <Text style={styles.subtitle}>Crear Rutina Personalizada</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Área"
+            value={customRoutine.area}
+            onChangeText={(text) =>
+              setCustomRoutine({ ...customRoutine, area: text })
+            }
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Nombre"
+            value={customRoutine.nombre}
+            onChangeText={(text) =>
+              setCustomRoutine({ ...customRoutine, nombre: text })
+            }
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Repeticiones"
+            keyboardType="numeric"
+            value={customRoutine.repeticiones}
+            onChangeText={(text) =>
+              setCustomRoutine({ ...customRoutine, repeticiones: text })
+            }
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Series"
+            keyboardType="numeric"
+            value={customRoutine.series}
+            onChangeText={(text) =>
+              setCustomRoutine({ ...customRoutine, series: text })
+            }
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Peso (kg)"
+            keyboardType="numeric"
+            value={customRoutine.peso}
+            onChangeText={(text) =>
+              setCustomRoutine({ ...customRoutine, peso: text })
+            }
+          />
+          <TouchableOpacity
+            style={styles.saveButton}
+            onPress={handleCreateCustomRoutine}
+          >
+            <Text style={styles.buttonText}>Guardar Rutina Personalizada</Text>
           </TouchableOpacity>
         </>
       )}
@@ -233,30 +367,39 @@ const ManageRoutinesScreen = ({ route, navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  input: {
-    flex: 1,
-    marginTop: 10,
-    fontSize: 16,
-    padding: 8,
-    borderRadius: 4,
-    backgroundColor: "#f0f0f0",
+  container: { padding: 20, backgroundColor: "#fff", flexGrow: 1 },
+  title: { fontSize: 24, fontWeight: "bold", marginBottom: 20 },
+  subtitle: { fontSize: 18, marginBottom: 10 },
+  picker: { marginBottom: 15, backgroundColor: "#f9f9f9" },
+  input: { marginBottom: 15, padding: 10, backgroundColor: "#f9f9f9" },
+  createPredefinedButton: {
+    padding: 15,
+    backgroundColor: "#3CB371",
+    borderRadius: 10,
+    alignItems: "center",
+    marginBottom: 20,
   },
-  exerciseContainer: {
+  saveButton: {
+    padding: 15,
+    backgroundColor: "#FF6347",
+    borderRadius: 10,
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  routineButton: {
+    padding: 10,
+    backgroundColor: "#f0f0f0",
+    borderRadius: 8,
+    marginBottom: 10,
+  },
+  routineText: { fontSize: 16 },
+  selectedRoutine: { backgroundColor: "#FFD700" },
+  buttonText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
+  formContainer: {
     marginBottom: 20,
     padding: 15,
-    borderRadius: 8,
-    backgroundColor: "#fff",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  exerciseTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 10,
-    color: "#333",
+    backgroundColor: "#f0f0f0",
+    borderRadius: 10,
   },
 });
 

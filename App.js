@@ -18,6 +18,7 @@ import RecordInjuriesScreen from "./screens/Trainer/RecordInjuriesScreen";
 
 // Pantallas del Alumno
 import StudentHomeScreen from "./screens/Student/StudentHomeScreen";
+import EditProfileScreen from "./screens/Student/EditProfileScreen";
 
 // Pantallas Comunes
 import LoginScreen from "./screens/Common/LoginScreen";
@@ -109,12 +110,20 @@ export default function App() {
           />
         )}
         {role === "alumno" && (
-          <Stack.Screen
-            name="StudentHomeScreen"
-            component={StudentHomeScreen}
-            options={{ headerShown: false }}
-          />
+          <>
+            <Stack.Screen
+              name="StudentHomeScreen"
+              component={StudentHomeScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="EditProfile"
+              component={EditProfileScreen}
+              options={{ headerShown: false }} 
+            />
+          </>
         )}
+        
         {!["adminmaster", "entrenador", "alumno"].includes(role) && (
           <Stack.Screen
             name="Error"

@@ -14,6 +14,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { auth, db } from "../../config/firebaseConfig";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { setDoc, doc } from "firebase/firestore";
+import { Picker } from "@react-native-picker/picker";
 
 // Importar la imagen de fondo
 import backgroundImage from "../../assets/fondo1.png";
@@ -42,14 +43,45 @@ const RegisterScreen = ({ navigation }) => {
       return;
     }
 
+    // Validar altura y peso
     if (isNaN(parseFloat(height)) || isNaN(parseFloat(weight))) {
       Alert.alert("Error", "Altura y peso deben ser valores numéricos.");
       return;
     }
 
+    // Validar correo electrónico
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       Alert.alert("Error", "Ingrese un correo electrónico válido.");
+      return;
+    }
+
+    // Validar contraseña
+    if (password.length < 6) {
+      Alert.alert("Error", "La contraseña debe tener al menos 6 caracteres.");
+      return;
+    }
+
+    // --- NUEVA VALIDACIÓN AQUÍ ---
+    // Verificamos si la contraseña incluye el nombre (convirtiendo ambos a minúsculas)
+    if (password.toLowerCase().includes(name.trim().toLowerCase())) {
+        Alert.alert("Error", "Por seguridad, la contraseña no puede contener tu nombre.");
+        return;
+    }
+    // -----------------------------
+
+    // Validar año
+    const currentYear = new Date().getFullYear();
+    const yearValue = parseInt(year);
+    if (isNaN(yearValue) || yearValue < 1900 || yearValue > currentYear) {
+      Alert.alert("Error", `El año debe estar entre 1900 y ${currentYear}.`);
+      return;
+    }
+
+    // Validar género
+    const validGenders = ["Masculino", "Femenino", "Otro"];
+    if (!validGenders.includes(gender)) {
+      Alert.alert("Error", "El género debe ser Masculino, Femenino u Otro.");
       return;
     }
 
@@ -101,34 +133,60 @@ const RegisterScreen = ({ navigation }) => {
               />
               <TextInput
                 style={[styles.input, styles.wideInput]}
-                placeholder="Año"
+                placeholder="Año (ej. 2000)"
                 value={year}
-                onChangeText={(text) => setYear(text)}
+                onChangeText={(text) => {
+                  if (/^\d{0,4}$/.test(text)) {
+                    setYear(text);
+                  }
+                }}
+                keyboardType="numeric"
                 placeholderTextColor="#ccc"
               />
-              <TextInput
-                style={[styles.input, styles.wideInput]}
-                placeholder="Género"
-                value={gender}
-                onChangeText={(text) => setGender(text)}
-                placeholderTextColor="#ccc"
-              />
+
+              <View style={styles.pickerContainer}>
+                <Picker
+                  selectedValue={gender}
+                  onValueChange={(value) => setGender(value)}
+                  style={styles.picker}
+                >
+                  <Picker.Item label="Seleccione su género" value="" />
+                  <Picker.Item label="Hombre" value="Masculino" />
+                  <Picker.Item label="Mujer" value="Femenino" />
+                  <Picker.Item label="Otro" value="Otro" />
+                </Picker>
+              </View>
+
               <TextInput
                 style={[styles.input, styles.wideInput]}
                 placeholder="Altura (cm)"
                 value={height}
-                onChangeText={(text) => setHeight(text)}
+                onChangeText={(text) => {
+                  // Expresión regular: Solo permite dígitos (0-9) y máximo 3 caracteres
+                  if (/^\d{0,3}$/.test(text)) {
+                    setHeight(text);
+                  }
+                }}
                 keyboardType="numeric"
+                maxLength={3} // Bloqueo adicional del teclado
                 placeholderTextColor="#ccc"
               />
+
               <TextInput
                 style={[styles.input, styles.wideInput]}
                 placeholder="Peso (kg)"
                 value={weight}
-                onChangeText={(text) => setWeight(text)}
+                onChangeText={(text) => {
+                  // Expresión regular: Solo permite dígitos (0-9) y máximo 3 caracteres
+                  if (/^\d{0,3}$/.test(text)) {
+                    setWeight(text);
+                  }
+                }}
                 keyboardType="numeric"
+                maxLength={3} // Bloqueo adicional del teclado
                 placeholderTextColor="#ccc"
               />
+              
               <TextInput
                 style={[styles.input, styles.wideInput]}
                 placeholder="Email"
@@ -246,6 +304,18 @@ const styles = StyleSheet.create({
     color: "#ff6f00",
     fontSize: 18,
     fontWeight: "bold",
+  },
+
+  pickerContainer: {
+    width: "100%",
+    marginVertical: 10,
+    borderWidth: 1,
+    borderRadius: 10,
+    borderColor: "rgba(255, 255, 255, 0.5)",
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+  },
+  picker: {
+    color: "#fff",
   },
 });
 

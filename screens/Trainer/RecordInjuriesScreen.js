@@ -103,10 +103,10 @@ const RecordInjuriesScreen = ({ route }) => {
       const injuries = await Promise.all(
         querySnapshot.docs.map(async (injuryDoc) => {
           const data = injuryDoc.data();
-          const studentId = injuryDoc.ref.path.split("/")[1]; // Extraemos el ID del estudiante
+          const studentId = injuryDoc.ref.path.split("/")[1];
 
           // Obtener el nombre del estudiante desde la colección usuarios
-          const studentDoc = await getDoc(doc(db, "usuarios", studentId)); // Corregido aquí
+          const studentDoc = await getDoc(doc(db, "usuarios", studentId));
           const studentName = studentDoc.exists()
             ? studentDoc.data().name || "Alumno sin nombre"
             : "Alumno no encontrado";
@@ -115,7 +115,7 @@ const RecordInjuriesScreen = ({ route }) => {
             id: injuryDoc.id,
             ...data,
             studentId,
-            studentName, // Agregamos el nombre del estudiante
+            studentName,
           };
         })
       );
@@ -279,13 +279,13 @@ const styles = StyleSheet.create({
     color: "#333",
   },
   recordButton: {
-    backgroundColor: "#FF6347", // Botón "Registrar Lesión"
+    backgroundColor: "#FF6347",
     padding: 15,
     borderRadius: 10,
     marginBottom: 20,
   },
   listButton: {
-    backgroundColor: "#FF6347", // Ahora es del mismo color que "Registrar Lesión"
+    backgroundColor: "#FF6347",
     padding: 15,
     borderRadius: 10,
   },

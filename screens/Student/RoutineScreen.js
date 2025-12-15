@@ -9,7 +9,15 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { db, auth } from "../../config/firebaseConfig";
-import { collection, getDocs, doc, updateDoc } from "firebase/firestore";
+
+import {
+  collection,
+  getDocs,
+  getDoc,
+  addDoc,
+  deleteDoc,
+  doc,
+} from "firebase/firestore";
 
 const RoutineScreen = () => {
   const [routines, setRoutines] = useState([]);
@@ -47,19 +55,32 @@ const RoutineScreen = () => {
       const userId = auth.currentUser?.uid;
       if (!userId) throw new Error("Usuario no autenticado.");
 
+      // Referencia a la rutina completada
       const routineRef = doc(db, "usuarios", userId, "routine", routineId);
-      await updateDoc(routineRef, { completed: true });
+      const routineDoc = await getDoc(routineRef);
+
+      if (!routineDoc.exists()) {
+        throw new Error("La rutina no existe.");
+      }
+
+      // Mover la rutina a la colección "progress"
+      const completedRoutine = routineDoc.data();
+      await addDoc(collection(db, "usuarios", userId, "progress"), {
+        ...completedRoutine,
+        completed: true,
+        completionDate: new Date(),
+      });
+
+      await deleteDoc(routineRef);
 
       setRoutines((prevRoutines) =>
-        prevRoutines.map((routine) =>
-          routine.id === routineId ? { ...routine, completed: true } : routine
-        )
+        prevRoutines.filter((routine) => routine.id !== routineId)
       );
 
-      Alert.alert("Éxito", "¡Rutina marcada como completada!");
+      Alert.alert("Éxito", "¡Rutina completada y movida al progreso!");
     } catch (error) {
-      console.error("Error al marcar rutina como completada:", error);
-      Alert.alert("Error", "No se pudo marcar la rutina como completada.");
+      console.error("Error al mover la rutina a progreso:", error);
+      Alert.alert("Error", "No se pudo mover la rutina al progreso.");
     }
   };
 
@@ -69,16 +90,16 @@ const RoutineScreen = () => {
         Área: {exercise.area || "No especificado"}
       </Text>
       <Text style={styles.exerciseText}>
-        Nombre: {exercise.name || "No especificado"}
+        Nombre: {exercise.nombre || "No especificado"}
       </Text>
       <Text style={styles.exerciseText}>
-        Repeticiones: {exercise.repetitions || "No especificado"}
+        Repeticiones: {exercise.repeticiones || "No especificado"}
       </Text>
       <Text style={styles.exerciseText}>
-        Series: {exercise.sets || "No especificado"}
+        Series: {exercise.series || "No especificado"}
       </Text>
       <Text style={styles.exerciseText}>
-        Peso: {exercise.weight || "No especificado"} kg
+        Peso: {exercise.peso || "No especificado"} kg
       </Text>
     </View>
   );

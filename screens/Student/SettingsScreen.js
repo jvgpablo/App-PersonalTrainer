@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
+  Platform, // <--- 1. IMPORTANTE: Importar Platform
 } from "react-native";
 import { auth } from "../../config/firebaseConfig";
 import { signOut } from "firebase/auth";
@@ -46,27 +47,43 @@ const SettingsScreen = ({ navigation }) => {
     await AsyncStorage.setItem("darkModeEnabled", JSON.stringify(newState));
   };
 
+  // --- FUNCIÓN CORREGIDA ---
   const handleLogout = () => {
-    Alert.alert(
-      "Cerrar sesión",
-      "¿Estás seguro de que quieres cerrar sesión?",
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Cerrar sesión",
-          onPress: async () => {
-            try {
-              await signOut(auth);
-              navigation.replace("Login"); // Regresa a la pantalla de inicio de sesión después de cerrar sesión
-            } catch (error) {
-              Alert.alert("Error", "No se pudo cerrar la sesión.");
-              console.error("Logout error:", error);
-            }
+    // Lógica para realizar el cierre de sesión
+    const performLogout = async () => {
+      try {
+        await signOut(auth);
+        // NO nececitas navigation.replace("Login"); 
+        // Tu App.js detectará el cambio de usuario y te llevará al Login automáticamente.
+      } catch (error) {
+        Alert.alert("Error", "No se pudo cerrar la sesión.");
+        console.error("Logout error:", error);
+      }
+    };
+
+    // 2. DETECTAR SI ES WEB (PC) O CELULAR
+    if (Platform.OS === 'web') {
+      // En PC/Web usamos window.confirm porque Alert.alert a veces falla
+      const confirm = window.confirm("¿Estás seguro de que quieres cerrar sesión?");
+      if (confirm) {
+        performLogout();
+      }
+    } else {
+      // En Celular (Android/iOS) usamos la Alerta nativa bonita
+      Alert.alert(
+        "Cerrar sesión",
+        "¿Estás seguro de que quieres cerrar sesión?",
+        [
+          { text: "Cancelar", style: "cancel" },
+          {
+            text: "Cerrar sesión",
+            onPress: performLogout, // Llamamos a la función
           },
-        },
-      ]
-    );
+        ]
+      );
+    }
   };
+  // -------------------------
 
   return (
     <View style={styles.container}>
@@ -153,6 +170,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#FF6347",
     borderRadius: 10,
     elevation: 5,
+    width: "100%", // Asegura que el botón sea ancho y fácil de cliquear
+    maxWidth: 300,
   },
   logoutIcon: {
     marginRight: 10,
